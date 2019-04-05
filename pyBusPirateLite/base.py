@@ -305,7 +305,7 @@ class BusPirate:
     def send_start_bit(self):
         self.write(0x02)
         self.response(1, True)
-        if self.response(1, True) == '\x01':
+        if self.response(1, True) == b'\x01':
             self.recurse_end()
             return 1
         return self.recurse(self.send_start_bit)
@@ -313,7 +313,7 @@ class BusPirate:
 
     def send_stop_bit(self):
         self.write(0x03)
-        if self.response(1, True) == 'x01':
+        if self.response(1, True) == b'\x01':
             self.recurse_end()
             return 1
         return self.recurse(self.send_stop_bit)
