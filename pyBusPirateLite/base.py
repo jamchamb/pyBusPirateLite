@@ -310,14 +310,12 @@ class BusPirate:
             return 1
         return self.recurse(self.send_start_bit)
 
-
     def send_stop_bit(self):
         self.write(0x03)
         if self.response(1, True) == b'\x01':
             self.recurse_end()
             return 1
         return self.recurse(self.send_stop_bit)
-
 
     def read_byte(self):
         """Reads a byte from the bus, returns the byte. You must ACK or NACK each
@@ -330,7 +328,6 @@ class BusPirate:
             self.write(0x04)
             return self.response(1, True)
 
-
     def bulk_trans(self, byte_count=1, byte_string=None):
         """this is how you send data in most of the communication modes.
             See the i2c example function in common_functions.
@@ -341,6 +338,7 @@ class BusPirate:
             In modes other than I2C I think it returns whatever data it gets while
             sending, but this feature is untested.  PLEASE REPORT so that I can
             document it."""
+
         if byte_string is None:
             pass
         self.write(0x10 | (byte_count - 1))
