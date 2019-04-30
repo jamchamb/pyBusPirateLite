@@ -237,7 +237,7 @@ class I2C(BusPirate):
             raise ValueError('Clock speed not supported')
         self.write(0x60 | clock)
 
-        if self.response(1, True) != b'\x01':
+        if self.response(1, binary=True) != b'\x01':
             raise ProtocolError('Could not set IC2 speed')
         self.i2c_speed = frequency
 
@@ -251,9 +251,10 @@ class I2C(BusPirate):
         operations happen once the completed command has been passed to the Bus Pirate. Any write data is internally
         buffered by the Bus Pirate. At the end of the operation, any read data is returned from the buffer, be aware
         that the write buffer is re-used as the read buffer, as such any write data needs to be re-loaded if the command
-         is re-executed.
+        is re-executed.
 
         Write then read command format
+        ------------------------------
         command (1byte)	number of write bytes (2bytes)	number of read bytes (2bytes)	bytes to write (0-4096bytes)
         Return data format
         success/0x01 (1byte)	bytes read from I2C (0-4096bytes)
@@ -264,16 +265,17 @@ class I2C(BusPirate):
         Next, send the bytes to write. Bytes are buffered in the Bus Pirate, there is no acknowledgment that a byte is
         received.
         The Bus Pirate sends an I2C start bit, then all write bytes are sent at once. If an I2C write is not ACKed by a
-         slave device, then the operation will abort and the Bus Pirate will return 0x00 now
+        slave device, then the operation will abort and the Bus Pirate will return 0x00 now
         Read starts immediately after the write completes. Bytes are read from I2C into a buffer at max I2C speed
         (no waiting for UART). All read bytes are ACKed, except the last byte which is NACKed, this process is handled
-         internally between the Bus Pirate and the I2C device
+        internally between the Bus Pirate and the I2C device
         At the end of the read process, the Bus Pirate sends an I2C stop
         The Bus Pirate now returns 0x01 to the PC, indicating success
         Finally, the buffered read bytes are returned to the PC
         Except as described above, there is no acknowledgment that a byte is received.
 
         Example
+        -------
         Here's an example of a read from a typical 24AA EEPROM:
 
         PC------>Bus Pirate
@@ -300,7 +302,7 @@ class I2C(BusPirate):
         self.write(numrx & 0xff)
         for data in txdata:
             self.write(data)
-        if self.response(1, True) != b'\x01':
+        if self.response(1, binary=True) != b'\x01':
             raise ProtocolError('Error in transmission')
 
         return self.response(numrx, binary=True)
@@ -329,16 +331,19 @@ class I2C(BusPirate):
 
 
         """
-        self.write(0x09)
-        if cmd in [0x00, 0x01, 0x02, 0x03, 0x10, 0x20]:
-            self.write(cmd)
-        else:
+        if cmd not in (0x00, 0x01, 0x02, 0x03, 0x10, 0x20):
             raise ProtocolError('Illegal extended AUX command')
-        resp = self.response(20, True)
+        self.write(0x09)
+        if self.response(1, binary=True) != b'\x01':
+            raise ProtocolError('Error in extended AUX command')
+        self.write(cmd)
+        resp = self.response(20, binary=True)
 
-        if resp[0] != 1:
-            raise ProtocolError(f'Error in extended AUX command {resp}')
-        return resp[1:-1].decode('ASCII')
+        # firmware ~7.1 responds to the command with text followed by another
+        # 0x01 confirmation. this behaivor was not well documented on the wiki
+        if resp[-1] != 0x01:
+            raise ProtocolError('Error in extended AUX command')
+        return resp[:-1].decode('ASCII')
 
     def configure(self, power=False, pullup=False, aux=False, cs=False):
         """Configure peripherals w=power, x=pullups, y=AUX, z=CS
@@ -361,5 +366,5 @@ class I2C(BusPirate):
         if cs:
             data |= 0x01
         self.write(data)
-        if self.response(1, True) != b'\x01':
+        if self.response(1, binary=True) != b'\x01':
             raise ProtocolError('Error configuring pins')

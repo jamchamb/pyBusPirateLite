@@ -90,6 +90,9 @@ class BusPirate:
     @property
     def adc_value(self):
         """ Read and return the voltage on the analog input pin. """
+        # raise error to prevent tab-completion having side-effects
+        if self.mode != 'bb':
+            raise TypeError("Action only valid in bitbang mode")
         self.write(0x14)
         val = int.from_bytes(self.response(2, binary=True), 'big')
         # see
@@ -141,7 +144,7 @@ class BusPirate:
         self.port.flushInput()
         for i in range(10):
             self.write(0x00)
-            r = self.response(1, True)
+            r = self.response(1, binary=True)
             if r:
                 break
             for m in range(2):
@@ -296,56 +299,59 @@ class BusPirate:
             return func(*args)
         raise IOError('bus pirate malfunctioning')
 
-    """ General Commands for Higher-Level Modes.
-    Note: Some of these do not have error checking implemented
-    (they return a 0 or 1.  You have to do your own error
-    checking.  This is as planned, since all of these
-    depend on the device you are interfacing with)"""
 
-    def send_start_bit(self):
-        self.write(0x02)
-        self.response(1, True)
-        if self.response(1, True) == b'\x01':
-            self.recurse_end()
-            return 1
-        return self.recurse(self.send_start_bit)
+""" General Commands for Higher-Level Modes.
+Note: Some of these do not have error checking implemented
+(they return a 0 or 1.  You have to do your own error
+checking.  This is as planned, since all of these
+depend on the device you are interfacing with)"""
 
-    def send_stop_bit(self):
-        self.write(0x03)
-        if self.response(1, True) == b'\x01':
-            self.recurse_end()
-            return 1
-        return self.recurse(self.send_stop_bit)
 
-    def read_byte(self):
-        """Reads a byte from the bus, returns the byte. You must ACK or NACK each
-        byte manually.  NO ERROR CHECKING (obviously)"""
-        if self.mode == 'raw':
-            self.write(0x06)
-            return self.response(1, True)  # this was changed, before it didn't have the 'True' which means it
-            # would have never returned any real data!
-        else:
-            self.write(0x04)
-            return self.response(1, True)
+def send_start_bit(self):
+    self.write(0x02)
+    self.response(1, True)
+    if self.response(1, binary=True) == b'\x01':
+        self.recurse_end()
+        return 1
+    return self.recurse(self.send_start_bit)
 
-    def bulk_trans(self, byte_count=1, byte_string=None):
-        """this is how you send data in most of the communication modes.
-            See the i2c example function in common_functions.
-            Send the data, and read the returned array.
-            In I2C:  A '1' means that it was NOT ACKNOWLEDGED, and a '0' means that
-            it WAS ACKNOWLEDGED (the reason for this is because this is what the
-            bus pirate itself does...)
-            In modes other than I2C I think it returns whatever data it gets while
-            sending, but this feature is untested.  PLEASE REPORT so that I can
-            document it."""
 
-        if byte_string is None:
-            pass
-        self.write(0x10 | (byte_count - 1))
-        for i in range(byte_count):
-            self.write(byte_string[i])
-        data = self.response(byte_count + 1, True)
-        if ord(data[0]) == 1:  # bus pirate sent an acknolwedge properly
-            self.recurse_end()
-            return data[1:]
-        self.recurse(self.bulk_trans, byte_count, byte_string)
+def send_stop_bit(self):
+    self.write(0x03)
+    if self.response(1, binary=True) == b'\x01':
+        self.recurse_end()
+        return 1
+    return self.recurse(self.send_stop_bit)
+
+
+def read_byte(self):
+    """Reads a byte from the bus, returns the byte. You must ACK or NACK each
+    byte manually.  NO ERROR CHECKING (obviously)"""
+    if self.mode == 'raw':
+        self.write(0x06)
+        return self.response(1, binary=True)
+    else:
+        self.write(0x04)
+        return self.response(1, binary=True)
+
+
+def bulk_trans(self, byte_count=1, byte_string=None):
+    """this is how you send data in most of the communication modes.
+    See the i2c example function in common_functions.
+    Send the data, and read the returned array.
+    In I2C:  A '1' means that it was NOT ACKNOWLEDGED, and a '0' means that
+    it WAS ACKNOWLEDGED (the reason for this is because this is what the
+    bus pirate itself does...)
+    In modes other than I2C I think it returns whatever data it gets while
+    sending, but this feature is untested.  PLEASE REPORT so that I can
+    document it."""
+    if byte_string is None:
+        pass
+    self.write(0x10 | (byte_count - 1))
+    for i in range(byte_count):
+        self.write(byte_string[i])
+    data = self.response(byte_count + 1, binary=True)
+    if data[0] == 1:  # bus pirate sent an acknolwedge properly
+        self.recurse_end()
+        return data[1:]
+    self.recurse(self.bulk_trans, byte_count, byte_string)
